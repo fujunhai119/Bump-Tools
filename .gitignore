@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+
+# IDE / CodeBuddy
+.codebuddy/plans/
+
+# OS
+.DS_Store
+Thumbs.db
