@@ -1,7 +1,6 @@
-"""Bump Version Compare - tkinter GUI 主程序。
+"""Bump 工具箱 - tkinter GUI 主程序。
 
-通过图形界面选择 Excel 文件，比较两个版本的 bump list，
-显示统计结果，并生成 Excel 报告文件。
+整合 Bump 版本比较 和 Bump DXF 生成 两个功能模块。
 """
 
 from __future__ import annotations
@@ -9,7 +8,7 @@ from __future__ import annotations
 import threading
 import tkinter as tk
 from pathlib import Path
-from tkinter import filedialog, messagebox
+from tkinter import filedialog, messagebox, ttk
 
 from bump_compare import (
     CompareStats,
@@ -19,22 +18,20 @@ from bump_compare import (
     read_bump_sheet,
     write_excel_report,
 )
+from dxf_gui import DxfExportPanel
 
 
 class BumpCompareApp:
-    """Bump Version Compare 主窗口应用。"""
+    """Bump Version Compare 主窗口应用（嵌入型）。"""
 
-    def __init__(self, root: tk.Tk) -> None:
+    def __init__(self, parent: tk.Widget) -> None:
         """初始化主窗口。
 
         Args:
-            root: tkinter 根窗口。
+            parent: 父容器（tk.Widget），如 tk.Frame。
         """
-        self.root = root
-        self.root.title("Bump Version Compare")
-        self.root.geometry("800x620")
-        self.root.resizable(True, True)
-        self.root.minsize(600, 400)
+        self.parent = parent
+        self.parent.configure(bg="#F0F2F5")
 
         self.input_path: tk.StringVar = tk.StringVar()
         self.output_path: tk.StringVar = tk.StringVar()
@@ -45,7 +42,7 @@ class BumpCompareApp:
     def _build_layout(self) -> None:
         """构建界面布局。"""
         # 顶部：文件选择区
-        top_frame = tk.LabelFrame(self.root, text="文件选择", padx=10, pady=10)
+        top_frame = tk.LabelFrame(self.parent, text="文件选择", padx=10, pady=10)
         top_frame.pack(fill="x", padx=10, pady=(10, 5))
 
         # Excel 文件选择行
@@ -71,7 +68,7 @@ class BumpCompareApp:
         ).pack(side="left")
 
         # 中部：结果展示区
-        mid_frame = tk.LabelFrame(self.root, text="比较结果", padx=10, pady=10)
+        mid_frame = tk.LabelFrame(self.parent, text="比较结果", padx=10, pady=10)
         mid_frame.pack(fill="both", expand=True, padx=10, pady=5)
 
         self.result_text = tk.Text(
@@ -83,7 +80,7 @@ class BumpCompareApp:
         scrollbar.pack(side="right", fill="y")
 
         # 底部：操作区
-        bot_frame = tk.Frame(self.root)
+        bot_frame = tk.Frame(self.parent)
         bot_frame.pack(fill="x", padx=10, pady=(5, 10))
 
         self.compare_btn = tk.Button(
@@ -91,13 +88,13 @@ class BumpCompareApp:
         )
         self.compare_btn.pack(side="left", padx=(0, 5))
 
-        tk.Button(bot_frame, text="退出", width=10, command=self.root.quit).pack(
+        tk.Button(bot_frame, text="退出", width=10, command=self.parent.quit).pack(
             side="right"
         )
 
         # 状态栏
         status_bar = tk.Label(
-            self.root,
+            self.parent,
             textvariable=self.status_text,
             bd=1,
             relief="sunken",
@@ -162,7 +159,7 @@ class BumpCompareApp:
             old_bumps: set[Bump] = read_bump_sheet(input_file, sheet_name="Sheet2")
             new_bumps: set[Bump] = read_bump_sheet(input_file, sheet_name="Sheet1")
         except (FileNotFoundError, ValueError, Exception) as e:
-            self.root.after(0, self._on_compare_error, str(e))
+            self.parent.after(0, self._on_compare_error, str(e))
             return
 
         stats: CompareStats = compare_bumps(old_bumps, new_bumps)
@@ -170,11 +167,11 @@ class BumpCompareApp:
         try:
             write_excel_report(stats, output_file)
         except (OSError, Exception) as e:
-            self.root.after(0, self._on_compare_error, f"写入报告失败: {e}")
+            self.parent.after(0, self._on_compare_error, f"写入报告失败: {e}")
             return
 
         print_report(stats)
-        self.root.after(0, self._on_compare_success, stats, output_file)
+        self.parent.after(0, self._on_compare_success, stats, output_file)
 
     def _on_compare_success(self, stats: CompareStats, output_file: str) -> None:
         """比较成功，更新界面并显示结果。
@@ -229,7 +226,31 @@ class BumpCompareApp:
 def main() -> None:
     """程序入口，创建主窗口并启动事件循环。"""
     root = tk.Tk()
-    BumpCompareApp(root)
+    root.title("Bump 工具箱")
+    root.geometry("1050x750")
+    root.resizable(True, True)
+    root.minsize(900, 600)
+
+    # 高 DPI 支持（Windows）
+    try:
+        from ctypes import windll
+        windll.shcore.SetProcessDpiAwareness(1)
+    except (ImportError, AttributeError):
+        pass
+
+    notebook = ttk.Notebook(root)
+    notebook.pack(fill="both", expand=True)
+
+    # Tab 1: Bump 版本比较
+    tab_compare = tk.Frame(notebook)
+    notebook.add(tab_compare, text="Bump 版本比较")
+    BumpCompareApp(tab_compare)
+
+    # Tab 2: Bump DXF 生成
+    tab_dxf = tk.Frame(notebook)
+    notebook.add(tab_dxf, text="Bump DXF 生成")
+    DxfExportPanel(tab_dxf).pack(fill="both", expand=True)
+
     root.mainloop()
 
 
